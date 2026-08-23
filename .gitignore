@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+.DS_Store
+
+db/session_cache.pkl
+db/pending/*.json
+db/complete/*.json
+db/error/*.json
+output/*.csv
+generated/hypotheses/*.json
+generated/candidates/*.json
+generated/templates/*.json
+generated/templates/*_alpha_template.py
+!generated/**/.gitkeep
