@@ -21,21 +21,7 @@
 
 ---
 
-## 1. 這個版本新增了什麼？
-
-舊版從 `alpha_template.py` 開始：
-
-```text
-手動讀論文
-    ↓
-手動叫 LLM 想 Alpha
-    ↓
-手動把 template 貼進 alpha_template.py
-    ↓
-GA / Simulation
-```
-
-新版則是：
+版則是：
 
 ```text
 Research PDF
