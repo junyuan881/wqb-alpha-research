@@ -14,7 +14,7 @@
 - Alpha type: `REGULAR`
 - Language: `FASTEXPR`
 
-專案內已包含你提供的：
+專案內已包含：
 
 - `data/REGULAR_operators.json`
 - `data/GLB_D1_TOPDIV3000_data_fields.json`
@@ -80,14 +80,9 @@ OpenAI Responses API
    ↓
 structured JSON
 ```
-
-不是去操作你瀏覽器裡的 ChatGPT 對話，也不是使用 ChatGPT Plus 的聊天額度。
-
-此專案沒有安裝 OpenAI SDK，而是直接用既有的 `requests` 呼叫 API，所以仍維持非常乾淨的 dependency。
-
+此專案沒有安裝 OpenAI SDK，而是直接用既有的 `requests` 呼叫 API
 ### `mock`
 
-完全不連網的假 LLM，專門測整條 pipeline 是否正常：
 
 ```bash
 python run.py research \
@@ -98,10 +93,6 @@ python run.py research \
   --population 6 \
   --reset-db
 ```
-
-這個 command 我已經實際跑過，可以從論文階段一路跑到 GA/Fake Simulation。
-
----
 
 ## 3. 為什麼 PDF 不需要另外裝 pypdf？
 
@@ -334,7 +325,7 @@ generated/templates/
 
 ---
 
-## 9. 真正把 PDF 論文交給 OpenAI
+## 9. 真正把 PDF 論文交給 LLM
 
 假設論文是：
 
@@ -498,9 +489,6 @@ ALPHA_TEMPLATE
 ALPHA_SPACE
 ```
 
-所以模型不會直接寫或覆蓋專案核心程式。
-
----
 
 ## 13. Validator 會檢查什麼？
 
@@ -545,7 +533,6 @@ validator again
 
 ## 14. 只產生 template，不跑 BRAIN
 
-這是我最推薦的第一步：
 
 ```bash
 python run.py research \
@@ -692,7 +679,7 @@ python run.py login
 
 ## 20. 原本手動 template 仍然保留
 
-如果你不想用論文/LLM，舊流程仍然能跑：
+如果不想用論文/LLM，流程仍然能跑：
 
 ```bash
 python run.py run \
@@ -778,11 +765,7 @@ output/
 pipeline_error
 ```
 
-所以不再只看到「全部 ERROR」卻不知道原因。
-
----
-
-## 24. 建議你的實際使用順序
+## 24. 建議的實際使用順序
 
 第一次：
 
