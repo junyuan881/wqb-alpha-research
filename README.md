@@ -1,10 +1,9 @@
 # WorldQuant BRAIN Paper-to-Alpha Research Project
 
-這個版本已經把原本的 WQB Alpha Pipeline 再往前自動化一層：
+
 
 > **研究論文 PDF → LLM 理解論文 → 自動搜尋 WQB data fields → 自動選 REGULAR operators → 產生 Alpha template → deterministic validation → Genetic Search → BRAIN simulation**
 
-也就是說，以後不需要再手動把論文丟給 ChatGPT、複製 template、貼回 Python。你可以直接把論文路徑交給 `run.py research`。
 
 預設 WQB 環境：
 
