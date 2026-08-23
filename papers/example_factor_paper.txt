@@ -1,0 +1,5 @@
+Example factor research note
+
+This note studies whether cash-flow strength relative to leverage predicts future equity returns. Firms that generate stronger free cash flow while carrying lower net debt may have more resilient balance sheets and greater flexibility to fund investment. The empirical hypothesis is that cross-sectional differences in cash-flow strength relative to debt can contain information about subsequent returns over medium horizons.
+
+Because accounting observations can be stale or missing, implementations should use conservative backfilling and compare each firm's current signal with its own recent history. Broad sector or industry effects should be controlled so that the signal is not simply a sector allocation.
