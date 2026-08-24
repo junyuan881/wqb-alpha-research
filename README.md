@@ -1,799 +1,112 @@
-# WorldQuant BRAIN Paper-to-Alpha Research Project
+<div align="center">
 
+# WQB Alpha Research
 
+**An AI-assisted paper-to-alpha research pipeline for WorldQuant BRAIN.**
 
-> **研究論文 PDF → LLM 理解論文 → 自動搜尋 WQB data fields → 自動選 REGULAR operators → 產生 Alpha template → deterministic validation → Genetic Search → BRAIN simulation**
+將研究論文轉換成可追蹤、可驗證，並可在 WorldQuant BRAIN 模擬的 Alpha 策略。
 
+[快速開始](#快速開始) · [CLI 指令](#cli-指令總覽) · [運作流程](#運作流程) · [輸出檔案](#輸出檔案)
 
-預設 WQB 環境：
+</div>
 
-- Instrument: `EQUITY`
-- Region: `GLB`
-- Delay: `1`
-- Universe: `TOPDIV3000`
-- Alpha type: `REGULAR`
-- Language: `FASTEXPR`
+## 這個專案在做什麼？
 
-專案內已包含：
+WQB Alpha Research 將論文閱讀、WQB 資料欄位搜尋、Alpha template 生成、規則驗證、Genetic Search 與 BRAIN simulation 串成一條可重複執行的研究流程。
 
-- `data/REGULAR_operators.json`
-- `data/GLB_D1_TOPDIV3000_data_fields.json`
-
----
-
-版則是：
+你只需要提供一篇 PDF 或文字研究稿，系統就能抽取可交易假設、尋找相關的 WorldQuant BRAIN data fields 與 REGULAR operators、產生 Alpha template，並在通過 Python validator 後選擇是否執行模擬。
 
 ```text
-Research PDF
-    ↓
-paper_reader.py
-    ↓
-paper_analyzer.py
-    ↓
-LLM #1：抽取論文 hypothesis / concepts
-    ↓
-field_search.py
-    ↓
-從 28,863 個 GLB fields 擷取最相關的一小批
-    ↓
-operator_search.py
-    ↓
-從 REGULAR operators 擷取可用集合
-    ↓
-template_generator.py
-    ↓
-LLM #2：Paper hypothesis → WQB Alpha template
-    ↓
-validator.py
-    ↓
-檢查 field / operator / placeholder / VECTOR type
-    ↓
-若不合法 → LLM 自動 repair（最多 N 次）
-    ↓
-generated/template.json
-    ↓
+Research Paper
+      ↓
+Hypothesis Extraction
+      ↓
+WQB Field & Operator Retrieval
+      ↓
+Alpha Template Generation
+      ↓
+Deterministic Validation
+      ↓
 Genetic Search
-    ↓
-FakeWorker 或真實 BRAIN Simulation
+      ↓
+WorldQuant BRAIN Simulation
 ```
 
-LLM 只負責「研究理解和設計」。真正決定 template 能不能進 simulation 的是 Python validator。
+### 核心功能
 
----
+- 從 PDF、TXT、Markdown、RST 或 TEX 研究稿擷取可交易假設
+- 從本地 WQB catalog 搜尋相關 data fields 與 REGULAR operators
+- 使用結構化 JSON 產生可追蹤的 Alpha template
+- 驗證 field、operator、placeholder 與 VECTOR/MATRIX 類型
+- 在 template 不合法時要求 LLM 修復，未通過驗證就停止模擬
+- 使用 Genetic Search 搜尋欄位與參數組合
+- 支援完全離線的 Mock LLM、Fake Simulation 與真實 BRAIN Simulation
+- 保存研究中間產物、模擬結果及錯誤資訊，方便重現與除錯
 
-## 2. LLM 是怎麼運作的？
+預設研究環境為 `EQUITY / GLB / Delay 1 / TOPDIV3000 / REGULAR / FASTEXPR`。
 
-預設支援兩個 provider：
+## 快速開始
 
-### `openai`
+### 1. 安裝
 
-你的 Python 程式直接呼叫 OpenAI Responses API。
-
-```text
-你的電腦
-   ↓
-run.py
-   ↓
-OPENAI_API_KEY
-   ↓
-OpenAI Responses API
-   ↓
-structured JSON
-```
-此專案沒有安裝 OpenAI SDK，而是直接用既有的 `requests` 呼叫 API
-### `mock`
-
+需要 Python 3.10 或以上版本。
 
 ```bash
-python run.py research \
-  --paper /absolute/path/to/papers/example_factor_paper.txt \
-  --llm-provider mock \
-  --simulate fake \
-  --generations 2 \
-  --population 6 \
-  --reset-db
+git clone https://github.com/junyuan881/WQB_alpha_research.git
+cd WQB_alpha_research
+python -m venv .venv
 ```
 
-## 3. 為什麼 PDF 不需要另外裝 pypdf？
-
-OpenAI Responses API 本身可以接收 PDF file input，所以 `openai_client.py` 會把 PDF 轉成 base64 file input 直接交給模型。
-
-因此：
-
-```text
-PDF
- ↓
-base64
- ↓
-Responses API input_file
- ↓
-LLM 同時理解 PDF 文字與頁面內容
-```
-
-專案目前對 PDF 的限制是：
-
-- 必須是 `.pdf`
-- 單一 PDF 必須小於 50 MB
-- 需要設定 `OPENAI_API_KEY`
-
-文字研究稿也支援：
-
-- `.txt`
-- `.md`
-- `.markdown`
-- `.rst`
-- `.tex`
-
-文字檔會直接在本機讀取，不會先轉成 PDF。
-
----
-
-## 4. 專案結構
-
-```text
-wqb_alpha_research_project_llm/
-├── README.md
-├── requirements.txt
-├── .env.example
-├── .gitignore
-├── run.py
-│
-├── papers/
-│   ├── .gitkeep
-│   └── example_factor_paper.txt
-│
-├── prompts/
-│   ├── paper_analysis.txt
-│   ├── template_generation.txt
-│   └── template_repair.txt
-│
-├── data/
-│   ├── REGULAR_operators.json
-│   └── GLB_D1_TOPDIV3000_data_fields.json
-│
-├── wqb_alpha/
-│   ├── __init__.py
-│   ├── config.py
-│   │
-│   ├── auth.py
-│   ├── api_client.py
-│   │
-│   ├── paper_reader.py
-│   ├── hypothesis.py
-│   ├── paper_analyzer.py
-│   │
-│   ├── field_search.py
-│   ├── operator_search.py
-│   │
-│   ├── template_schema.py
-│   ├── template_generator.py
-│   ├── validator.py
-│   │
-│   ├── llm/
-│   │   ├── __init__.py
-│   │   ├── base.py
-│   │   ├── openai_client.py
-│   │   └── mock_client.py
-│   │
-│   ├── research_pipeline.py
-│   │
-│   ├── alpha.py
-│   ├── alpha_list.py
-│   ├── alpha_template.py
-│   ├── template_engine.py
-│   ├── data_field_catalog.py
-│   ├── operator_catalog.py
-│   ├── storage.py
-│   ├── worker.py
-│   ├── scorer.py
-│   ├── genetic_search.py
-│   ├── exporter.py
-│   └── cli.py
-│
-├── generated/
-│   ├── hypotheses/
-│   ├── candidates/
-│   └── templates/
-│
-├── db/
-│   ├── pending/
-│   ├── complete/
-│   └── error/
-│
-├── output/
-│
-├── tests/
-│   ├── smoke_test.py
-│   └── research_pipeline_test.py
-│
-└── reference/
-    └── original_notebook.ipynb
-```
-
----
-
-## 5. 安裝
-
-建議 Python 3.10+。
-
-### Windows PowerShell
+Windows PowerShell：
 
 ```powershell
-cd C:\你的路徑\wqb_alpha_research_project_llm
-python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 ```
 
-### WSL / Linux / macOS
+Linux / macOS：
 
 ```bash
-cd /你的/絕對路徑/wqb_alpha_research_project_llm
-python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-目前 dependencies 仍只有：
+### 2. 設定環境變數
 
-```text
-requests
-numpy
-pandas
-tqdm
+複製 `.env.example`：
+
+```bash
+cp .env.example .env
 ```
 
----
-
-## 6. 設定 `.env`
-
-先複製：
-
-### Windows PowerShell
+Windows PowerShell 可使用：
 
 ```powershell
 Copy-Item .env.example .env
 ```
 
-### Linux / WSL / macOS
+只有使用 OpenAI 或真實 BRAIN Simulation 時才需要填入對應設定：
 
-```bash
-cp .env.example .env
-```
-
-然後編輯 `.env`：
-
-```text
-OPENAI_API_KEY=你的_OpenAI_API_Key
+```dotenv
+OPENAI_API_KEY=your_openai_api_key
 LLM_PROVIDER=openai
 LLM_MODEL=gpt-5.6
 
-WQB_USERNAME=你的_WQB_帳號
-WQB_PASSWORD=你的_WQB_密碼
+WQB_USERNAME=your_wqb_username
+WQB_PASSWORD=your_wqb_password
 ```
 
-`config.py` 有一個小型 `.env` reader，因此不需要另外裝 `python-dotenv`。
+`.env` 已被 `.gitignore` 排除，請勿將真實憑證提交到 GitHub。
 
-`.env` 已被 `.gitignore` 排除，不會打包進 Git。
+### 3. 先跑離線流程
 
----
-
-## 7. 先確認原本 WQB template 沒壞
+以下流程不需要 OpenAI API key 或 WorldQuant BRAIN 帳號：
 
 ```bash
 python run.py validate
-```
-
-預期：
-
-```text
-Template validation: PASS
-```
-
----
-
-## 8. 先測完整 Paper-to-Alpha pipeline（不用任何 API）
-
-先跑：
-
-```bash
-python run.py research \
-  --paper /absolute/path/to/wqb_alpha_research_project_llm/papers/example_factor_paper.txt \
-  --llm-provider mock \
-  --simulate none
-```
-
-會得到：
-
-```text
-[1/7] Reading/analyzing paper with LLM...
-[2/7] Retrieving relevant WQB data fields...
-[3/7] Retrieving relevant REGULAR operators...
-[4/7] Asking LLM to design an Alpha template...
-[5/7] Validating generated fields/operators/template...
-[6/7] Simulation skipped (--simulate none).
-[7/7] Research artifacts saved.
-```
-
-產物會放在：
-
-```text
-generated/hypotheses/
-generated/candidates/
-generated/templates/
-```
-
----
-
-## 9. 真正把 PDF 論文交給 LLM
-
-假設論文是：
-
-```text
-/home/lenovo/papers/my_factor_paper.pdf
-```
-
-執行：
-
-```bash
-python run.py research \
-  --paper /home/lenovo/papers/my_factor_paper.pdf \
-  --llm-provider openai \
-  --simulate none
-```
-
-如果 `.env` 已經寫：
-
-```text
-LLM_PROVIDER=openai
-LLM_MODEL=gpt-5.6
-```
-
-那也可以簡化：
-
-```bash
-python run.py research \
-  --paper /home/lenovo/papers/my_factor_paper.pdf \
-  --simulate none
-```
-
----
-
-## 10. Paper analysis 會產生什麼？
-
-例如：
-
-```json
-{
-  "title": "...",
-  "research_question": "...",
-  "summary": "...",
-  "tradable_claims": [
-    {
-      "id": "H1",
-      "source_hint": "Section 3 empirical result",
-      "hypothesis": "...",
-      "economic_intuition": "...",
-      "predictor_concepts": [
-        "free cash flow",
-        "net debt",
-        "leverage"
-      ],
-      "expected_direction": "POSITIVE",
-      "horizon": "1-6 months",
-      "implementation_notes": "..."
-    }
-  ],
-  "global_concepts": [
-    "cash flow",
-    "debt"
-  ],
-  "risks": []
-}
-```
-
-這一層故意不直接產生 Alpha expression。
-
-流程一定是：
-
-```text
-Paper
- ↓
-Hypothesis
- ↓
-WQB Mapping
- ↓
-Alpha Template
-```
-
-這樣將來回頭 debug 才知道是哪一層出問題。
-
----
-
-## 11. 為什麼不把 28,863 個 fields 全塞進 LLM？
-
-`field_search.py` 會先在本機做 retrieval。
-
-例如 paper analysis 抽出：
-
-```text
-free cash flow
-operating cash flow
-net debt
-leverage
-```
-
-程式會掃描本地：
-
-```text
-data/GLB_D1_TOPDIV3000_data_fields.json
-```
-
-然後只留下例如前 80 個候選 fields。
-
-你可以調：
-
-```bash
---field-limit 120
-```
-
-例如：
-
-```bash
-python run.py research \
-  --paper /home/lenovo/papers/paper.pdf \
-  --field-limit 120 \
-  --operator-limit 60 \
-  --simulate none
-```
-
-這樣可以大幅減少 prompt 大小，也降低 LLM 亂挑 field 的機率。
-
----
-
-## 12. Template 的 JSON 格式
-
-LLM 不直接輸出 Python code，而是固定輸出 schema，例如：
-
-```json
-{
-  "name": "cashflow_debt_resilience",
-  "description": "...",
-  "source_hypothesis_id": "H1",
-  "expression_template": "cash = ts_backfill(<cash_field>, <backfill_days>); ...",
-  "variables": [
-    {
-      "placeholder": "<cash_field>",
-      "kind": "FIELD",
-      "values": [
-        "free_cash_flow_firm",
-        "free_cash_flow_annual"
-      ],
-      "rationale": "..."
-    },
-    {
-      "placeholder": "<lookback>",
-      "kind": "PARAMETER",
-      "values": ["21", "63", "126", "252"],
-      "rationale": "..."
-    }
-  ],
-  "design_notes": []
-}
-```
-
-`template_schema.py` 再把它轉成：
-
-```python
-ALPHA_TEMPLATE
-ALPHA_SPACE
-```
-
-
-## 13. Validator 會檢查什麼？
-
-模型產生 template 後，一定要先通過 `validator.py`。
-
-它檢查：
-
-1. 所有 FIELD 是否真的存在於 GLB catalog。
-2. FIELD 是否屬於本次 retrieval shortlist。
-3. 所有 OPERATOR 是否真的在 REGULAR operators。
-4. operator 是否屬於本次 allowed shortlist。
-5. template 內固定 literal operator 是否合法。
-6. 每個 `<placeholder>` 是否都有 variable definition。
-7. 是否有 duplicate placeholder。
-8. FIELD placeholder 是否混用 `MATRIX` 與 `VECTOR`。
-9. `VECTOR` field 是否有先用 `vec_*` reducer。
-10. variable 是否定義但沒有使用。
-
-如果 validation fail：
-
-```text
-LLM template
-   ↓
-validator FAIL
-   ↓
-template_repair.txt
-   ↓
-LLM repair
-   ↓
-validator again
-```
-
-預設最多修兩次：
-
-```bash
---max-repairs 2
-```
-
-如果兩次後還失敗，就不會進 simulation。
-
----
-
-## 14. 只產生 template，不跑 BRAIN
-
-
-```bash
-python run.py research \
-  --paper /home/lenovo/papers/paper.pdf \
-  --simulate none
-```
-
-確認以下東西：
-
-```text
-generated/hypotheses/<paper>_paper_analysis.json
-generated/candidates/<paper>_fields.json
-generated/candidates/<paper>_operators.json
-generated/templates/<paper>_template.json
-generated/templates/<paper>_alpha_template.py
-```
-
----
-
-## 15. 檢查已經產生好的 template
-
-```bash
-python run.py validate-generated \
-  /absolute/path/to/generated/templates/my_paper_template.json
-```
-
-預期：
-
-```text
-Generated template validation: PASS
-```
-
----
-
-## 16. 之後直接拿舊 template 跑，不要再花一次 LLM API
-
-這個 command 很重要：
-
-```bash
-python run.py run-generated \
-  /absolute/path/to/generated/templates/my_paper_template.json \
-  --mode fake \
-  --generations 2 \
-  --population 10 \
-  --reset-db
-```
-
-真實 BRAIN：
-
-```bash
-python run.py run-generated \
-  /absolute/path/to/generated/templates/my_paper_template.json \
-  --mode real \
-  --generations 2 \
-  --population 10 \
-  --reset-db
-```
-
-因此你可以把 expensive LLM generation 和 simulation 完全拆開。
-
----
-
-## 17. 論文直接一路跑到 Fake Simulation
-
-```bash
-python run.py research \
-  --paper /home/lenovo/papers/paper.pdf \
-  --llm-provider openai \
-  --simulate fake \
-  --generations 2 \
-  --population 10 \
-  --reset-db
-```
-
-這會：
-
-```text
-論文
- ↓
-OpenAI
- ↓
-Hypothesis
- ↓
-Fields
- ↓
-Operators
- ↓
-Template
- ↓
-Validator
- ↓
-GA
- ↓
-FakeWorker
- ↓
-CSV
-```
-
----
-
-## 18. 論文直接一路跑到真實 WQB BRAIN
-
-建議先用很小的 population：
-
-```bash
-python run.py research \
-  --paper /home/lenovo/papers/paper.pdf \
-  --llm-provider openai \
-  --simulate real \
-  --generations 1 \
-  --population 4 \
-  --reset-db
-```
-
-確認 4 個都沒有 API ERROR 後，再放大：
-
-```bash
-python run.py research \
-  --paper /home/lenovo/papers/paper.pdf \
-  --simulate real \
-  --generations 5 \
-  --population 30
-```
-
----
-
-## 19. 登入 WQB 仍然獨立
-
-登入邏輯仍在：
-
-```text
-wqb_alpha/auth.py
-```
-
-獨立測試：
-
-```bash
-python run.py login
-```
-
-如果 WorldQuant BRAIN 要求 Persona / 官方驗證，程式會保留互動式流程，不會繞過 MFA、CAPTCHA 或生物辨識。
-
----
-
-## 20. 原本手動 template 仍然保留
-
-如果不想用論文/LLM，流程仍然能跑：
-
-```bash
-python run.py run \
-  --mode fake \
-  --generations 2 \
-  --population 10 \
-  --reset-db
-```
-
-真實：
-
-```bash
-python run.py run \
-  --mode real \
-  --generations 2 \
-  --population 10 \
-  --reset-db
-```
-
-舊 template 仍位於：
-
-```text
-wqb_alpha/alpha_template.py
-```
-
----
-
-## 21. 搜尋 data fields
-
-```bash
-python run.py fields "free cash flow" --type MATRIX --limit 20
-```
-
-```bash
-python run.py fields "net debt" --limit 20
-```
-
-```bash
-python run.py fields debt --dataset fundamental23 --limit 30
-```
-
----
-
-## 22. 搜尋 REGULAR operators
-
-```bash
-python run.py operators rank
-```
-
-```bash
-python run.py operators --category "Time Series" --limit 30
-```
-
----
-
-## 23. Output / database
-
-### LLM / research intermediate outputs
-
-```text
-generated/hypotheses/
-generated/candidates/
-generated/templates/
-```
-
-### Simulation database
-
-```text
-db/pending/
-db/complete/
-db/error/
-```
-
-### 結果 CSV
-
-```text
-output/
-```
-
-每個 simulation ERROR 會保留：
-
-```text
-pipeline_error
-```
-
-## 24. 建議的實際使用順序
-
-第一次：
-
-```bash
-pip install -r requirements.txt
-```
-
-```bash
-cp .env.example .env
-```
-
-填 API key 後：
-
-```bash
-python run.py validate
-```
-
-離線完整測試：
-
-```bash
 python tests/research_pipeline_test.py
-```
-
-再測 Mock + Fake：
-
-```bash
 python run.py research \
-  --paper /absolute/path/to/papers/example_factor_paper.txt \
+  --paper papers/example_factor_paper.txt \
   --llm-provider mock \
   --simulate fake \
   --generations 2 \
@@ -801,65 +114,238 @@ python run.py research \
   --reset-db
 ```
 
-真正論文先只做 template：
+### 4. 使用真實論文
+
+先產生並驗證 template，不要立即執行真實模擬：
 
 ```bash
 python run.py research \
-  --paper /absolute/path/to/your_paper.pdf \
+  --paper /path/to/your_paper.pdf \
   --llm-provider openai \
   --simulate none
 ```
 
-最後才小規模真實 BRAIN：
+確認 `generated/templates/` 的結果後，再用小規模 population 測試 BRAIN：
 
 ```bash
 python run.py run-generated \
-  /absolute/path/to/generated/templates/your_paper_template.json \
+  generated/templates/your_paper_template.json \
   --mode real \
   --generations 1 \
   --population 4 \
   --reset-db
 ```
 
----
+## CLI 指令總覽
 
-## 25. 重要設計原則
+所有功能都從 `run.py` 進入：
 
-這個專案刻意不是：
+| 指令 | 功能 |
+| --- | --- |
+| `research` | 論文 → LLM → WQB mapping → template → validation，可選擇接續 simulation |
+| `validate` | 驗證專案內建的手動 Alpha template |
+| `validate-generated` | 驗證已產生的 template JSON |
+| `run-generated` | 使用既有 template 執行 Genetic Search 與 simulation，不重複呼叫 LLM |
+| `run` | 使用內建手動 template 執行傳統研究流程 |
+| `fields` | 搜尋 GLB D1 TOPDIV3000 data fields |
+| `operators` | 搜尋 REGULAR operators |
+| `login` | 測試 WorldQuant BRAIN 登入與 Persona 流程 |
 
-```text
-LLM 隨便讀 PDF
- ↓
-LLM 隨便寫 Alpha
- ↓
-直接 BRAIN
+查看完整參數：
+
+```bash
+python run.py --help
+python run.py research --help
 ```
 
-而是：
+## 常見使用方式
 
-```text
-LLM：研究理解
-        ↓
-Python：WQB retrieval
-        ↓
-LLM：受限設計
-        ↓
-Python：hard validation
-        ↓
-GA：搜尋 parameter/field variants
-        ↓
-BRAIN：simulation
+### 只產生 template
+
+適合第一次處理真實論文。研究產物會被保存，但不會啟動 Genetic Search 或 simulation。
+
+```bash
+python run.py research \
+  --paper /path/to/paper.pdf \
+  --llm-provider openai \
+  --simulate none
 ```
 
-因此 LLM 是「researcher」，Python 是「retriever + gatekeeper」，WQB BRAIN 是「experiment environment」。
+### 論文一路執行到 Fake Simulation
 
-這樣做的目的就是降低：
+```bash
+python run.py research \
+  --paper /path/to/paper.pdf \
+  --llm-provider openai \
+  --simulate fake \
+  --generations 2 \
+  --population 10 \
+  --reset-db
+```
 
-- hallucinated data fields
-- hallucinated operators
-- VECTOR/MATRIX type error
-- invalid placeholder
-- 整批 simulation 全部 ERROR
-- 每次手動複製 template
+### 重複使用已產生的 template
 
-同時保留論文原始 hypothesis，讓之後可以追蹤 Alpha 到底是從哪個研究想法來的。
+將 LLM generation 與 simulation 分開，可以避免重複支付 LLM API 成本。
+
+```bash
+python run.py validate-generated generated/templates/your_paper_template.json
+
+python run.py run-generated \
+  generated/templates/your_paper_template.json \
+  --mode fake \
+  --generations 2 \
+  --population 10 \
+  --reset-db
+```
+
+將 `--mode fake` 改成 `--mode real` 即可使用 WorldQuant BRAIN。
+
+### 使用手動 template
+
+不使用論文或 LLM 時，仍可執行 `wqb_alpha/alpha_template.py` 的傳統流程：
+
+```bash
+python run.py run \
+  --mode fake \
+  --generations 2 \
+  --population 10 \
+  --reset-db
+```
+
+### 搜尋 fields 與 operators
+
+```bash
+python run.py fields "free cash flow" --type MATRIX --limit 20
+python run.py fields debt --dataset fundamental23 --limit 30
+python run.py operators rank
+python run.py operators --category "Time Series" --limit 30
+```
+
+### 測試 BRAIN 登入
+
+```bash
+python run.py login
+```
+
+若 BRAIN 要求 Persona、MFA 或其他官方驗證，程式會保留互動式流程，不會繞過驗證機制。
+
+## 運作流程
+
+### 1. 理解論文
+
+LLM 將論文整理成研究問題、經濟直覺、可交易假設、預期方向與相關概念。這一階段不直接產生 Alpha expression，讓每個 Alpha 都能追蹤回原始研究想法。
+
+### 2. 搜尋 WQB 資源
+
+Python 先從本地 catalog 搜尋與論文概念相關的 data fields 及 REGULAR operators，只將 shortlist 提供給 LLM。這能縮小 prompt 並降低使用不存在資源的機率。
+
+### 3. 產生與驗證 template
+
+LLM 依據 hypothesis 與 shortlist 產生結構化 template。Python validator 會檢查：
+
+- field 與 operator 是否存在且位於允許清單
+- placeholder 是否完整、唯一且有被使用
+- FIELD 與 PARAMETER 的設定是否合法
+- MATRIX 與 VECTOR 類型是否被正確處理
+- template 內是否包含不合法的固定 operator
+
+若驗證失敗，系統最多依 `--max-repairs` 設定要求 LLM 修復；仍未通過時不會進入 simulation。
+
+### 4. 搜尋與模擬
+
+驗證完成後，Genetic Search 會探索 template 中的 field 與 parameter variants。`fake` 模式適合測試流程；`real` 模式則將候選 Alpha 送至 WorldQuant BRAIN。
+
+| 元件 | 責任 |
+| --- | --- |
+| LLM | 理解論文、提出 hypothesis、設計受限 template |
+| Python retrieval | 搜尋可用 fields 與 operators |
+| Python validator | 擔任 simulation 前的 hard gate |
+| Genetic Search | 探索 field 與 parameter 組合 |
+| BRAIN | 執行真實 simulation 並回傳結果 |
+
+## 輸入與輸出
+
+### 支援的研究稿格式
+
+- `.pdf`：透過 OpenAI Responses API 讀取文字與頁面內容，單檔需小於 50 MB
+- `.txt`
+- `.md` / `.markdown`
+- `.rst`
+- `.tex`
+
+文字格式會在本機讀取。PDF 模式需要有效的 OpenAI API key。
+
+### 輸出檔案
+
+```text
+generated/
+├── hypotheses/   # 論文分析與可交易假設
+├── candidates/   # data-field 與 operator shortlist
+└── templates/    # template JSON 與可讀的 Python 版本
+
+db/
+├── pending/      # 等待處理的 simulations
+├── complete/     # 已完成的 simulations
+└── error/        # 錯誤內容與 pipeline_error
+
+output/           # 排序後的 simulation CSV
+```
+
+## 專案結構
+
+```text
+.
+├── run.py                    # CLI entry point
+├── data/                     # WQB fields 與 REGULAR operators catalog
+├── papers/                   # 範例與本地研究稿
+├── prompts/                  # analysis、generation 與 repair prompts
+├── generated/                # pipeline 中間產物
+├── output/                   # simulation 結果
+├── tests/                    # smoke 與 end-to-end tests
+├── reference/                # 原始研究 notebook
+└── wqb_alpha/
+    ├── cli.py                # CLI commands
+    ├── paper_reader.py       # PDF / text input
+    ├── paper_analyzer.py     # hypothesis extraction
+    ├── field_search.py       # data-field retrieval
+    ├── operator_search.py    # operator retrieval
+    ├── template_generator.py # template generation / repair
+    ├── validator.py          # deterministic validation
+    ├── genetic_search.py     # Genetic Search
+    ├── worker.py             # Fake / BRAIN workers
+    └── llm/                  # OpenAI 與 mock clients
+```
+
+## 進階設定
+
+`research` 常用參數：
+
+| 參數 | 預設值 | 說明 |
+| --- | ---: | --- |
+| `--field-limit` | `80` | 提供給 LLM 的 field shortlist 大小 |
+| `--operator-limit` | `50` | 提供給 LLM 的 operator shortlist 大小 |
+| `--max-repairs` | `2` | template 驗證失敗後的修復次數 |
+| `--simulate` | `none` | `none`、`fake` 或 `real` |
+| `--generations` | `2` | Genetic Search generations |
+| `--population` | `10` | 每個 generation 的 population |
+| `--seed` | `123` | 隨機種子 |
+| `--single-sim` | 關閉 | 停用 multi-simulation |
+
+環境變數與完整 runtime tuning 請參考 [`.env.example`](.env.example)。
+
+## 測試
+
+```bash
+python tests/smoke_test.py
+python tests/research_pipeline_test.py
+```
+
+`research_pipeline_test.py` 使用 Mock LLM 與本地資料，適合在設定真實 API 前確認整條 pipeline。
+
+## 注意事項
+
+- LLM 產生的 hypothesis 或 Alpha template 不代表具有投資價值，仍需實驗與人工判斷。
+- 真實 BRAIN Simulation 會使用你的 WorldQuant BRAIN 帳號與 API 配額，建議先以小型 population 測試。
+- 專案目前針對 `GLB / Delay 1 / TOPDIV3000 / REGULAR / FASTEXPR` catalog 設計。
+- 請勿提交 `.env`、session cache、真實帳號密碼或 API key。
+
