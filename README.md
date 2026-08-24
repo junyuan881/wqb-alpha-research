@@ -10,7 +10,7 @@
 
 </div>
 
-## 簡介？
+## 簡介
 
 WQB Alpha Research 將論文閱讀、WQB 資料欄位搜尋、Alpha template 生成、規則驗證、Genetic Search 與 BRAIN simulation 串成一條可重複執行的研究流程。
 
